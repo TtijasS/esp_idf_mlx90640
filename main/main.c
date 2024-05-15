@@ -7,6 +7,7 @@
 
 void app_main(void)
 {
+    ESP_LOGI(TAG, "Example started");
     // Setup master handles and initialize I2C
     init_i2c();
 

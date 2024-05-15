@@ -13,12 +13,36 @@
 bool mlx_initial_setup(i2c_buffer_type *i2c_buffer)
 {
     uint16_t data = 0;
-    if (!mlx_read_register(i2c_buffer, MLX_STAT_REG, &data))
-    {
-        ESP_LOGI(TAG, "Failed to read register");
-        return;
-    }
-    printf("Status register: 0x%04X\n", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0000, true);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, true);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, false);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, true);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0008, true);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0018, false);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0018, true);
+    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
+    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+
+    return true;
 }
 
 /**
@@ -28,12 +52,12 @@ bool mlx_initial_setup(i2c_buffer_type *i2c_buffer)
  * If the clear flag is set to true, the bits are cleared, otherwise they are set.
  *
  * @param i2c_buffer: struct with read_buffer, write_buffer
- * @param reg_addr: register address
- * @param bits: bits mask
- * @param clear: clear or set the bits
+ * @param reg_addr: register address (uint16_t register address)
+ * @param bit_mask: bit mask of selected bits (1 = selected, 0 = not selected)
+ * @param set: set (true) or clear (false) the selected bits
  * @return bool: true if successfull, otherwise false
  */
-bool mlx_configure_register(i2c_buffer_type *i2c_buffer, uint16_t reg_addr, uint16_t bits, bool clear)
+bool mlx_configure_register(i2c_buffer_type *i2c_buffer, uint16_t reg_addr, uint16_t bit_mask, bool set)
 {
     if (i2c_buffer == NULL)
     {
@@ -49,16 +73,20 @@ bool mlx_configure_register(i2c_buffer_type *i2c_buffer, uint16_t reg_addr, uint
     }
 
     uint16_t modified_data = (i2c_buffer->read_buffer[0] << 8) | i2c_buffer->read_buffer[1];
-    if (clear)
-        modified_data &= ~bits; // clear the bits with 1
+    ESP_LOGI(TAG, "Initial data: 0x%04X", modified_data);
+    if (set)
+        modified_data |= bit_mask; // set the bits with 1
     else
-        modified_data |= bits; // enable the bits with 1
+        modified_data &= ~bit_mask; // clear the bits with 1
+
+    ESP_LOGI(TAG, "Modified data: 0x%04X", modified_data);
 
     // Prepare the write buffer
     i2c_buffer->write_buffer[0] = reg_addr >> 8;
     i2c_buffer->write_buffer[1] = reg_addr & 0xFF;
     i2c_buffer->write_buffer[2] = modified_data >> 8;
     i2c_buffer->write_buffer[3] = modified_data & 0xFF;
+    ESP_LOGI(TAG, "Write buffer: 0x%02X 0x%02X 0x%02X 0x%02X", i2c_buffer->write_buffer[0], i2c_buffer->write_buffer[1], i2c_buffer->write_buffer[2], i2c_buffer->write_buffer[3]);
     // Transmit the data and return if the transmission was successful
     return mlx_transmit(i2c_buffer, 4);
 }
@@ -111,7 +139,7 @@ bool mlx_read_register(i2c_buffer_type *i2c_buffer, uint16_t reg_addr, uint16_t 
  *
  * @return bool: true if successfull, otherwise false
  */
-bool mlx_transmit_receive(i2c_buffer_type *i2c_buffer, uint8_t write_buf_size, uint8_t read_buf_size)
+bool mlx_transmit_receive(i2c_buffer_type *i2c_buffer, uint8_t write_buf_size, uint16_t read_buf_size)
 {
     if (write_buf_size > sizeof(i2c_buffer->write_buffer))
     {
