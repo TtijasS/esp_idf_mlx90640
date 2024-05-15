@@ -14,5 +14,6 @@ bool mlx_transmit_receive(i2c_buffer_type *, uint8_t, uint16_t);
 bool mlx_transmit(i2c_buffer_type *, uint8_t);
 bool mlx_configure_register(i2c_buffer_type *, uint16_t, uint16_t, bool);
 bool mlx_read_register(i2c_buffer_type *, uint16_t, uint16_t *);
+bool mlx_read_ram_data(i2c_buffer_type *);
 
 #endif // MLX90640_H

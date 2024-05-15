@@ -12,35 +12,13 @@
  */
 bool mlx_initial_setup(i2c_buffer_type *i2c_buffer)
 {
-    uint16_t data = 0;
+    // uint16_t data = 0;
 
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0000, true);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+    ESP_LOGI(TAG, "Setting up MLX90640");
 
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, true);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
+    mlx_configure_register(i2c_buffer, MLX_CTLR_REG_1, 0x0001, true);
+    mlx_configure_register(i2c_buffer, MLX_CTLR_REG_1, 0x0004, false);
 
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, false);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
-
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0010, true);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
-
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0008, true);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
-
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0018, false);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
-
-    mlx_configure_register(i2c_buffer, MLX_STAT_REG, 0x0018, true);
-    mlx_read_register(i2c_buffer, MLX_STAT_REG, &data);
-    ESP_LOGI(TAG, "Status register: 0x%04X", data);
 
     return true;
 }
@@ -59,36 +37,62 @@ bool mlx_initial_setup(i2c_buffer_type *i2c_buffer)
  */
 bool mlx_configure_register(i2c_buffer_type *i2c_buffer, uint16_t reg_addr, uint16_t bit_mask, bool set)
 {
+    ESP_LOGI(TAG, "Setting register 0x%04X\n\t{", reg_addr);
+    static uint16_t tmp_data = 0;
     if (i2c_buffer == NULL)
     {
         ESP_LOGI(TAG, "Aborting mlx_configure_register, i2c_buffer is NULL");
         return false;
     }
-    i2c_buffer->write_buffer[0] = reg_addr >> 8;
-    i2c_buffer->write_buffer[1] = reg_addr & 0xFF;
-    if (!mlx_transmit_receive(i2c_buffer, 2, 2))
+
+    if (!mlx_read_register(i2c_buffer, reg_addr, &tmp_data))
     {
         ESP_LOGI(TAG, "Failed to read register");
         return false;
     }
 
-    uint16_t modified_data = (i2c_buffer->read_buffer[0] << 8) | i2c_buffer->read_buffer[1];
-    ESP_LOGI(TAG, "Initial data: 0x%04X", modified_data);
+    ESP_LOGI(TAG, "Initial data:  0x%04X", tmp_data);
     if (set)
-        modified_data |= bit_mask; // set the bits with 1
+        tmp_data |= bit_mask; // set the bits with 1
     else
-        modified_data &= ~bit_mask; // clear the bits with 1
+        tmp_data &= ~bit_mask; // clear the bits with 1
 
-    ESP_LOGI(TAG, "Modified data: 0x%04X", modified_data);
+    ESP_LOGI(TAG, "Modified data: 0x%04X", tmp_data);
 
     // Prepare the write buffer
     i2c_buffer->write_buffer[0] = reg_addr >> 8;
     i2c_buffer->write_buffer[1] = reg_addr & 0xFF;
-    i2c_buffer->write_buffer[2] = modified_data >> 8;
-    i2c_buffer->write_buffer[3] = modified_data & 0xFF;
-    ESP_LOGI(TAG, "Write buffer: 0x%02X 0x%02X 0x%02X 0x%02X", i2c_buffer->write_buffer[0], i2c_buffer->write_buffer[1], i2c_buffer->write_buffer[2], i2c_buffer->write_buffer[3]);
+    i2c_buffer->write_buffer[2] = tmp_data >> 8;
+    i2c_buffer->write_buffer[3] = tmp_data & 0xFF;
+    ESP_LOGI(TAG, "Writing: 0x%02X-%02X-%02X-%02X", i2c_buffer->write_buffer[0], i2c_buffer->write_buffer[1], i2c_buffer->write_buffer[2], i2c_buffer->write_buffer[3]);
     // Transmit the data and return if the transmission was successful
-    return mlx_transmit(i2c_buffer, 4);
+    if (!mlx_transmit(i2c_buffer, 4))
+    {
+        ESP_LOGI(TAG, "Failed to transmit new config");
+        return false;
+    }
+
+    uint16_t checkup_reading = 0;
+    if (!mlx_read_register(i2c_buffer, reg_addr, &checkup_reading))
+    {
+        ESP_LOGI(TAG, "Failed to read register on checkup");
+        return false;
+    }
+
+    if (tmp_data != checkup_reading)
+    {
+        ESP_LOGI(TAG, "Failed to set the register on checkup");
+        ESP_LOGI(TAG, "Expected: 0x%04X", tmp_data);
+        ESP_LOGI(TAG, "Received: 0x%04X\n\t}", checkup_reading);
+        return false;
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Register set successfully");
+        ESP_LOGI(TAG, "Expected: 0x%04X", tmp_data);
+        ESP_LOGI(TAG, "Received: 0x%04X\n\t}", checkup_reading);
+        return true;
+    }
 }
 
 /**
@@ -179,4 +183,20 @@ bool mlx_transmit(i2c_buffer_type *i2c_buffer, uint8_t write_buf_size)
     }
     ESP_ERROR_CHECK(i2c_master_transmit(master_dev_handle, i2c_buffer->write_buffer, write_buf_size, I2C_TIMEOUT_MS));
     return true;
+}
+
+/**
+ * @brief Read the data from the MLX90640 RAM.
+ * 
+ * The function reads the data from the MLX90640 RAM register and stores it into the read_buffer.
+ * You have to check the status register to see which page is active.
+ * 
+ * @param i2c_buffer: struct with read_buffer, write_buffer
+ * @return true if successfull, otherwise false 
+ */
+bool mlx_read_ram_data(i2c_buffer_type *i2c_buffer)
+{
+    i2c_buffer->write_buffer[0] = MLX_RAM_REG >> 8;
+    i2c_buffer->write_buffer[1] = MLX_RAM_REG & 0xFF;
+    return mlx_transmit_receive(i2c_buffer, 2, 768);
 }

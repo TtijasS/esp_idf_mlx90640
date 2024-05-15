@@ -10,13 +10,14 @@ static const char *TAG = "I2C Example";
 #define I2C_TIMEOUT_MS 1000				 // I2C timeout in milliseconds
 
 // Setup I2C buffer sizes
-#define I2C_READ_BUFF_SIZE 385 // I2C max read buffer size
+#define I2C_READ_BUFF_SIZE 768 // I2C max read buffer size
 #define I2C_WRITE_BUFF_SIZE 4 // i2c max write buffer size
 
 // MLX REGISTERS FOR COMMUNICATION
 #define MLC_SLAVE_ADR 0x33	  // MPU6050 slave address
 
 // MLX90640 REGISTERS
+#define MLX_RAM_REG 0x0400 // RAM register for reading the measurements from the sensor
 #define MLX_STAT_REG 0X8000
 #define MLX_CTLR_REG_1 0X800D
 #define MLX_CTLR_REG_2 0X800E
