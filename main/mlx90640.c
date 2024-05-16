@@ -19,7 +19,6 @@ bool mlx_initial_setup(i2c_buffer_type *i2c_buffer)
     mlx_configure_register(i2c_buffer, MLX_CTLR_REG_1, 0x0001, true);
     mlx_configure_register(i2c_buffer, MLX_CTLR_REG_1, 0x0004, false);
 
-
     return true;
 }
 
@@ -187,16 +186,66 @@ bool mlx_transmit(i2c_buffer_type *i2c_buffer, uint8_t write_buf_size)
 
 /**
  * @brief Read the data from the MLX90640 RAM.
- * 
+ *
  * The function reads the data from the MLX90640 RAM register and stores it into the read_buffer.
  * You have to check the status register to see which page is active.
- * 
+ *
  * @param i2c_buffer: struct with read_buffer, write_buffer
- * @return true if successfull, otherwise false 
+ * @return true if successfull, otherwise false
  */
 bool mlx_read_ram_data(i2c_buffer_type *i2c_buffer)
 {
     i2c_buffer->write_buffer[0] = MLX_RAM_REG >> 8;
     i2c_buffer->write_buffer[1] = MLX_RAM_REG & 0xFF;
     return mlx_transmit_receive(i2c_buffer, 2, 768);
+}
+
+/**
+ * @brief
+ *
+ * @param i2c_buffer
+ * @param mlx_data
+ * @return true
+ * @return false
+ */
+bool mlx_read_eeprom_dump(i2c_buffer_type *i2c_buffer, mlx_data_type *mlx_data)
+{
+    uint8_t eeprom_tmp_dump[1664] = {0};
+    i2c_buffer->write_buffer[0] = MLX_EEPROM_DUMP_REG >> 8;
+    i2c_buffer->write_buffer[1] = MLX_EEPROM_DUMP_REG & 0xFF;
+    ESP_ERROR_CHECK(i2c_master_transmit_receive(master_dev_handle, i2c_buffer->write_buffer, 2, eeprom_tmp_dump, 1664, I2C_TIMEOUT_MS));
+}
+
+bool mlx_extract_eeprom_dump(mlx_data_type *mlx_data, uint8_t *eeprom_dmp)
+{
+    if (eeprom_dmp == NULL)
+    {
+        ESP_LOGI(TAG, "Aborting mlx_extract_eeprom_dump, eeprom_dmp is NULL");
+        return false;
+    }
+    if (mlx_data == NULL)
+    {
+        ESP_LOGI(TAG, "Aborting mlx_extract_eeprom_dump, mlx_data is NULL");
+        return false;
+    }
+
+    mlx_data->gain = (eeprom_dmp[0] << 8) | eeprom_dmp[1];
+    mlx_data->vdd_25 = (eeprom_dmp[2] << 8) | eeprom_dmp[3];
+    mlx_data->ptat_25 = (eeprom_dmp[4] << 8) | eeprom_dmp[5];
+    mlx_data->kptat = (eeprom_dmp[6] << 8) | eeprom_dmp[7];
+    mlx_data->tgc = (eeprom_dmp[8] << 8) | eeprom_dmp[9];
+    mlx_data->sens_kv = (eeprom_dmp[10] << 8) | eeprom_dmp[11];
+    mlx_data->sens_kta = (eeprom_dmp[12] << 8) | eeprom_dmp[13];
+    mlx_data->ks_to_1 = (eeprom_dmp[14] << 8) | eeprom_dmp[15];
+    mlx_data->ks_to_2 = (eeprom_dmp[16] << 8) | eeprom_dmp[17];
+    mlx_data->ks_to_3 = (eeprom_dmp[18] << 8) | eeprom_dmp[19];
+    mlx_data->ks_to_4 = (eeprom_dmp[20] << 8) | eeprom_dmp[21];
+    mlx_data->cp_1 = (eeprom_dmp[22] << 8) | eeprom_dmp[23];
+    mlx_data->cp_2 = (eeprom_dmp[24] << 8) | eeprom_dmp[25];
+
+    for (int i = 26; i < 1664; ++i)
+    {
+        mlx_data->pix_offsets[i] = (eeprom_dmp[26 + i * 2] << 8) | eeprom_dmp[27 + i * 2];
+    }
+    return true;
 }
