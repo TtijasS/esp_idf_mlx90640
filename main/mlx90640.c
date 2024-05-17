@@ -208,12 +208,23 @@ bool mlx_read_ram_data(i2c_buffer_type *i2c_buffer)
  * @return true
  * @return false
  */
-bool mlx_read_eeprom_dump(i2c_buffer_type *i2c_buffer, mlx_data_type *mlx_data)
+bool mlx_read_eeprom_dump(i2c_buffer_type *i2c_buffer, uint16_t *eeprom_dump)
 {
-    uint8_t eeprom_tmp_dump[1664] = {0};
+    if (eeprom_dump == NULL)
+    {
+        ESP_LOGI(TAG, "Aborting mlx_read_eeprom_dump, eeprom_dump is NULL");
+        return false;
+    }
+
     i2c_buffer->write_buffer[0] = MLX_EEPROM_DUMP_REG >> 8;
     i2c_buffer->write_buffer[1] = MLX_EEPROM_DUMP_REG & 0xFF;
-    ESP_ERROR_CHECK(i2c_master_transmit_receive(master_dev_handle, i2c_buffer->write_buffer, 2, eeprom_tmp_dump, 1664, I2C_TIMEOUT_MS));
+    ESP_ERROR_CHECK(i2c_master_transmit_receive(master_dev_handle, i2c_buffer->write_buffer, 2, i2c_buffer->read_buffer, 1664, I2C_TIMEOUT_MS));
+
+    for (int i = 0; i < 832; i+=2)
+    {
+        eeprom_dump[i] = (i2c_buffer->read_buffer[i] << 8) | i2c_buffer->read_buffer[i + 1];
+    }
+    return true;
 }
 
 bool mlx_extract_eeprom_dump(mlx_data_type *mlx_data, uint8_t *eeprom_dmp)

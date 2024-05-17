@@ -10,24 +10,26 @@ void app_main(void)
     // Setup master handles and initialize I2C
     init_i2c();
 
-    // Setup the MPU6050 registers
-    // mlx_initial_setup(&i2c_buffer);
-
-    if (mlx_read_ram_data(&i2c_buffer))
+    // create a temporary eeprom_dump of uint16_t type that will get deleted afterwards
+    uint16_t *eeprom_dump = (uint16_t *)malloc(832 * sizeof(uint16_t));
+    if(!mlx_read_eeprom_dumb(&i2c_buffer, eeprom_dump))
     {
-        ESP_LOGI(TAG, "Data read from the MLX90640 RAM");
+        ESP_LOGI(TAG, "Failed to read EEPROM dump");
+        free(eeprom_dump);
+        return;
     }
+    
 
-    printf("Data read from the MLX90640 RAM:\n");
-    uint16_t pixel_val = 0;
-    for (int i = 0; i < I2C_READ_BUFF_SIZE; i += 2)
-    {
-        pixel_val = (i2c_buffer.read_buffer[i] << 8) | i2c_buffer.read_buffer[i + 1];
-        printf("%u | ", pixel_val);
-        if ((i / 2 + 1) % 16 == 0)
-        { // Print newline after every 16 pixels
-            printf("\n");
-        }
-    }
+    // printf("Data read from the MLX90640 RAM:\n");
+    // uint16_t pixel_val = 0;
+    // for (int i = 0; i < I2C_READ_BUFF_SIZE; i += 2)
+    // {
+    //     pixel_val = (i2c_buffer.read_buffer[i] << 8) | i2c_buffer.read_buffer[i + 1];
+    //     printf("%u | ", pixel_val);
+    //     if ((i / 2 + 1) % 16 == 0)
+    //     { // Print newline after every 16 pixels
+    //         printf("\n");
+    //     }
+    // }
     ESP_ERROR_CHECK(i2c_del_master_bus(master_bus_handle));
 }
