@@ -1,4 +1,4 @@
-#include "data_structs.h"
+#include "mlx90640_i2c_driver.h"
 
 // Initialize the MLX90640 sensor data structure
 mlx_data_type mpu_data = {
