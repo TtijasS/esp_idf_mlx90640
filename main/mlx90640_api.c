@@ -65,7 +65,6 @@ int MLX90640_SynchFrame(uint8_t slaveAddr)
         }
         // dataReady = statusRegister & 0x0008;
         dataReady = MLX90640_GET_DATA_READY(statusRegister);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
     }
 
     return MLX90640_NO_ERROR;
@@ -138,7 +137,6 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
             ESP_LOGE(TAG, "Timeout waiting for data ready");
             return -1; // Timeout error
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS); // Small delay to prevent tight loop
     }
 
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
