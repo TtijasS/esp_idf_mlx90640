@@ -34,137 +34,94 @@ paramsMLX90640 mlx90640_params = {
     .outlierPixels = {0},
 };
 
-// int mlx_read_extract_eeprom(paramsMLX90640 *);
-// int mlx_read_frames(uint16_t *);
-// int mlx_calculate_temperatures(uint16_t *, float *, float, float);
+// ----------------- Prototypes -----------------
+void mlx_delay_after_por();
+int mlx_read_extract_eeprom();
+int mlx_get_subpage_temps(float *subpage_temps, float emissivity, int8_t ambient_offset);
+int mlx_read_full_picture(float *subpage_temps_0, float *subpage_temps_1, float emissivity, int8_t ambient_offset);
+int mlx_merge_subpages(float *subpage_temps_0, float *subpage_temps_1);
 
+// ----------------- Definitions -----------------
 #define MLX_REFRESH_RATE MLX_REFRESH_2HZ
 #define MLX_REFRESH_MILLIS MLX_2_HZ_MILLIS
-TickType_t time_counter;
 
+// ----------------- Main -----------------
 void app_main(void)
 {
-    // ESP_LOGI(TAG, "Testing freeRtos counting time that has passed");
-    // // current time variable
-    // int64_t time_0 = esp_timer_get_time();
-    // int64_t time_1 = 0;
-    // int64_t time_diff_us = 0;
-    // int64_t time_diff_ms = 0;
-    // for (int i = 0; i <= 100; i++)
-    // {
-    //     time_1 = esp_timer_get_time();
-    //     time_diff_us = (time_1 - time_0);
-    //     time_diff_ms = time_diff_us / 1000;
-    //     ESP_LOGI(TAG, "Time passed: %lld, (%lld)", time_diff_us, time_diff_ms);
-    // }
-    
     // Initialize the I2C bus
     ESP_LOGI(TAG, "Initializing I2C bus");
     MLX90640_I2CInit();
-    MLX90640_SetRefreshRate(MLX90640_SLAVE_ADR, MLX_REFRESH_RATE);
-    
-    MLX90640_I2CGeneralReset();
-    time_counter = xTaskGetTickCount();
-    vTaskDelayUntil(&time_counter, (80 + MLX_REFRESH_MILLIS*2) / portTICK_PERIOD_MS);
 
+    if (MLX90640_I2CGeneralReset() != 0)
+    {
+        ESP_LOGE(TAG, "Failed to reset the sensor");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Sensor reset successful");
+    // Delay after power on reset
+    mlx_delay_after_por();
+    // Read and extract EEPROM calibration data into mlx90640_params
     if (mlx_read_extract_eeprom(&mlx90640_params) != 0)
     {
         ESP_LOGE(TAG, "Failed to read and extract EEPROM data");
         return;
     }
-
-
+    ESP_LOGI(TAG, "EEPROM data read and extracted successfully");
     // Allocate memory for frame data
-    uint16_t *frame_0_data = (uint16_t *)malloc(834 * sizeof(uint16_t));
-    uint16_t *frame_1_data = (uint16_t *)malloc(834 * sizeof(uint16_t));
-    if (frame_0_data == NULL || frame_1_data == NULL)
+    float *subpage_0 = (float *)malloc(768 * sizeof(float));
+    float *subpage_1 = (float *)malloc(768 * sizeof(float));
+    if ((subpage_0 == NULL) | (subpage_1 == NULL))
     {
         ESP_LOGE(TAG, "Failed to allocate memory for frame data");
-        free(frame_0_data);
-        free(frame_1_data);
         return;
     }
-
-    uint16_t *frame_pointer = frame_0_data;
-    int frame_number = -1;
-    bool frame_0_read = false;
-    bool frame_1_read = false;
-    // MLX90640_I2CGeneralReset();
-    if (MLX90640_SynchFrame(MLX90640_SLAVE_ADR) == 0)
-    {
-        MLX90640_
-        while (!frame_0_read || !frame_1_read)
-        {
-            frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, frame_pointer);
-            if (frame_number == -1)
-            {
-                ESP_LOGE(TAG, "Failed to read the frame! Exiting with GetFrameData status -1");
-                free(frame_0_data);
-                free(frame_1_data);
-                return;
-            }
-            if (frame_number == 0)
-            {
-                ESP_LOGI(TAG, "Frame 0 ready");
-                frame_0_read = true;
-                frame_pointer = frame_1_data;
-            }
-            else if (frame_number == 1)
-            {
-                ESP_LOGI(TAG, "Frame 1 ready");
-                if (!frame_0_read)
-                {
-                    ESP_LOGI(TAG, "Skipping frame 1");
-                    continue;
-                }
-                frame_1_read = true;
-            }
-            vTaskDelay(200 / portTICK_PERIOD_MS);
-        }
-    }
-
-    float emissivity = 0.99;
-    int8_t tr_offset = 6;
-
-    // Process frame 0
-    float Ta_0 = MLX90640_GetTa(frame_0_data, &mlx90640_params);
-    float tr = Ta_0 - tr_offset; // Ambient temperature offset
-    ESP_LOGI(TAG, "Frame 0 ambient temp: %.2f °C (%.1f)", Ta_0, tr);
-    float mlx90640To_0[768] = {0};
-    MLX90640_CalculateTo(frame_0_data, &mlx90640_params, emissivity, tr, mlx90640To_0);
-    free(frame_0_data); // Free frame 0 data memory as soon as it is no longer needed
-
-    // Correct the broken or missing pixel values for frame 0
-    int mode = MLX90640_GetCurMode(MLX90640_SLAVE_ADR);
-    MLX90640_BadPixelsCorrection(mlx90640_params.brokenPixels, mlx90640To_0, mode, &mlx90640_params);
-    MLX90640_BadPixelsCorrection(mlx90640_params.outlierPixels, mlx90640To_0, mode, &mlx90640_params);
-
-    // Process frame 1
-    float mlx90640To_1[768] = {0};
-    float Ta_1 = MLX90640_GetTa(frame_1_data, &mlx90640_params);
-    tr = Ta_1 - tr_offset; // Ambient temperature offset
-    ESP_LOGI(TAG, "Frame 1 ambient temp: %.2f °C (%.1f)", Ta_0, tr);
-
-    MLX90640_CalculateTo(frame_1_data, &mlx90640_params, emissivity, tr, mlx90640To_1);
-    free(frame_1_data); // Free frame 1 data memory as soon as it is no longer needed
-
-    // Correct the broken or missing pixel values for frame 1
-    MLX90640_BadPixelsCorrection(mlx90640_params.brokenPixels, mlx90640To_1, mode, &mlx90640_params);
-    MLX90640_BadPixelsCorrection(mlx90640_params.outlierPixels, mlx90640To_1, mode, &mlx90640_params);
-
-    // Combine the two frames (for averaging)
+    // Set all to 0
     for (int i = 0; i < 768; i++)
     {
-        mlx90640To_0[i] = mlx90640To_0[i] + mlx90640To_1[i];
+        subpage_0[i] = 0;
+        subpage_1[i] = 0;
+    }
+    ESP_LOGI(TAG, "Subpages mem allocated successfully");
+    ESP_LOGI(TAG, "Synchronizing the frame");
+    if(MLX90640_SynchFrame(MLX90640_SLAVE_ADR) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to synchronize the frame");
+        return;
+    }
+    ESP_LOGI(TAG, "Frame synchronized successfully");
+    if (mlx_read_full_picture(subpage_0, subpage_1, .97, -8) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to read the full picture");
+        return;
+    }
+    if (mlx_merge_subpages(subpage_0, subpage_1) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to merge subpages");
+        return;
     }
 
     // Print the temperatures
     for (int i = 0; i < 768; i++)
     {
-        printf("%.1f;", mlx90640To_0[i]);
+        printf("%.2f;", subpage_0[i]);
     }
+    free(subpage_0);
+    free(subpage_1);
 
     ESP_ERROR_CHECK(i2c_del_master_bus(master_bus_handle));
+}
+
+// ----------------- Functions -----------------
+
+/**
+ * @brief Delay the correct ammount of time after power on reset.
+ *
+ */
+void mlx_delay_after_por()
+{
+    TickType_t starting_time = xTaskGetTickCount();
+    vTaskDelayUntil(&starting_time, (80 + MLX_REFRESH_MILLIS * 2) / portTICK_PERIOD_MS);
 }
 
 /**
@@ -172,19 +129,22 @@ void app_main(void)
  *
  * Read the EEPROM data and extract the parameters.
  * The extracted parameters are stored in paramsMLX90640 struct.
- * 
- * @param mlx90640_eeprom_params: pointer to the paramsMLX90640 struct
  *
  * @return int
  */
-int mlx_read_extract_eeprom(paramsMLX90640 *mlx90640_eeprom_params)
+int mlx_read_extract_eeprom()
 {
     // create a temporary eeprom_dump of uint16_t type that will get deleted afterwards
-    uint16_t *eeprom_dump = (uint16_t *)malloc(834 * sizeof(uint16_t));
+    uint16_t *eeprom_dump = (uint16_t *)malloc(832 * sizeof(uint16_t));
     if (eeprom_dump == NULL)
     {
         ESP_LOGE(TAG, "Failed to allocate memory for eeprom_dump");
         return 1;
+    }
+    // set all values to 0
+    for (int i = 0; i < 832; i++)
+    {
+        eeprom_dump[i] = 0;
     }
 
     // Dump EEPROM data
@@ -192,108 +152,141 @@ int mlx_read_extract_eeprom(paramsMLX90640 *mlx90640_eeprom_params)
     {
         ESP_LOGE(TAG, "Failed to dump EEPROM data");
         free(eeprom_dump);
-        return;
+        return 2;
     }
 
     // Extract EEPROM data
-    if (MLX90640_ExtractParameters(eeprom_dump, &mlx90640_eeprom_params) != 0)
+    if (MLX90640_ExtractParameters(eeprom_dump, &mlx90640_params) != 0)
     {
         ESP_LOGE(TAG, "Failed to extract EEPROM data");
         free(eeprom_dump);
-        return;
+        return 3;
     }
 
     free(eeprom_dump); // Free EEPROM dump memory as soon as it is no longer needed
     return 0;
 }
 
-// /**
-//  * @brief Read frames until both frames are read successfully.
-//  *
-//  * Loop keeps reading until frame 0 and then frame 1 are read successfully.
-//  * Loop demands frame 0 first and frame 1 second.
-//  * If 10 subsequent failed attempts fail, the function returns -1.
-//  *
-//  * @param frame_data: pointer to the frame_data[834]. Must at least 834!
-//  * @return int
-//  */
-// int mlx_read_frames(uint16_t *frame_data)
-// {
-//     int frame_number = -1;
-//     bool frame_0_read = false;
-//     uint8_t failed_attempts = 0;
+/**
+ * @brief Read raw frame data and calculate temperatures.
+ *
+ * Raw subpage sensor data is read into temp array and then the temperatures stored into the subpage_temps array.
+ *
+ * @param subpage_temps: pointer to the array of temperatures (at least 768 long)
+ * @return int
+ */
+int mlx_get_subpage_temps(float *subpage_temps, float emissivity, int8_t ambient_offset)
+{
+    if (subpage_temps == NULL)
+    {
+        ESP_LOGE(TAG, "subpage_temps is NULL!");
+        return 1;
+    }
 
-//     MLX90640_I2CGeneralReset();
-//     frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, frame_data);
+    uint16_t *subpage_raw_data = (uint16_t *)malloc(834 * sizeof(uint16_t));
+    if (subpage_raw_data == NULL)
+    {
+        ESP_LOGE(TAG, "frame_data is NULL!");
+        return 2;
+    }
+    // Set all values to 0
+    for (int i = 0; i < 834; i++)
+    {
+        subpage_raw_data[i] = 0;
+    }
+    ESP_LOGI(TAG, "Subpage raw data allocated successfully");
 
-//     return 0;
-//     // while (1)
-//     // {
-//     //     frame_number = -1;
-//     //     MLX90640_I2CGeneralReset();
-//     //     frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, frame_data);
+    ESP_LOGI(TAG, "Reading the frame data");
+    int frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, subpage_raw_data);
 
-//     //     return 0;
+    if (frame_number == -1)
+    {
+        ESP_LOGE(TAG, "Failed to read the frame! Exiting with GetFrameData status -1");
+        free(subpage_raw_data);
+        return 3;
+    }
+    ESP_LOGI(TAG, "Frame number: %d", frame_number);
 
-//     //     // if (frame_number == -1)
-//     //     // {
-//     //     //     failed_attempts++;
-//     //     //     if (failed_attempts >= 10)
-//     //     //     {
-//     //     //         ESP_LOGE(TAG, "Failed to read the frame %d subsequent times!", failed_attempts);
-//     //     //         return -1;
-//     //     //     }
-//     //     // }
-//     //     // else
-//     //     //     return 0;
-//     //     // {
-//     //     //     failed_attempts = 0;
+    // Get the ambient temperature
+    float ambient_temperature = MLX90640_GetTa(subpage_raw_data, &mlx90640_params);
+    ambient_temperature -= ambient_offset; // offset the ambient temperature
+    ESP_LOGI(TAG, "Ambient temp: %.2f °C", ambient_temperature);
 
-//     //     //     if (frame_number == 0)
-//     //     //     {
-//     //     //         frame_0_read = true;
-//     //     //     }
-//     //     //     else if (frame_number == 1)
-//     //     //     {
-//     //     //         if (!frame_0_read)
-//     //     //             continue;
-//     //     //         return 0;
-//     //     //     }
-//     //     // }
-//     // }
-// }
+    // Calculate subpage temperatures
+    MLX90640_CalculateTo(subpage_raw_data, &mlx90640_params, emissivity, ambient_temperature, subpage_temps);
+    // Free the raw data memory as soon as it is no longer needed
+    free(subpage_raw_data);
 
-// /**
-//  * @brief Transform raw frame data to temperatures. You must first read eeprom and read frames.
-//  *
-//  * Calculate the ambient temperature (Ta) and then calculate the temperatures of all pixels.
-//  * Correct the broken or missing pixel values (boken and outlier pixels are defined in mlx90640_type)
-//  *
-//  * @param raw_data_array: pointer to the array of raw pixels data (at least 834 long)
-//  * @param temps_data_array: pointer to the array with temperatures (at least 768 long)
-//  * @param emissivity: emissivity of the object (0.0 - 1.0, usually 0.95)
-//  * @param ambient_temp_offset: ambient temperature offset (adjust based on the sensor's environment)
-//  * @return int
-//  */
-// int mlx_calculate_temperatures(uint16_t *raw_data_array, float *temps_data_array, float emissivity, float ambient_temp_offset)
-// {
-//     if (raw_data_array == NULL)
-//     {
-//         ESP_LOGE(TAG, "raw_frame_data is NULL!");
-//         return 1;
-//     }
-//     if (temps_data_array == NULL)
-//     {
-//         ESP_LOGE(TAG, "frame_data_temperatures is NULL!");
-//         return 2;
-//     }
-//     float Ta = MLX90640_GetTa(raw_data_array, &mlx90640_type) - ambient_temp_offset;
-//     MLX90640_CalculateTo(raw_data_array, &mlx90640_type, emissivity, Ta, temps_data_array);
+    // Get the current mode of the sensor
+    int mode = MLX90640_GetCurMode(MLX90640_SLAVE_ADR);
+    // Correct the broken or missing pixel values
+    MLX90640_BadPixelsCorrection(mlx90640_params.brokenPixels, subpage_temps, mode, &mlx90640_params);
+    MLX90640_BadPixelsCorrection(mlx90640_params.outlierPixels, subpage_temps, mode, &mlx90640_params);
+    return 0;
+}
 
-//     // Correct the broken or missing pixel values
-//     int mode = MLX90640_GetCurMode(MLX90640_SLAVE_ADR);
-//     MLX90640_BadPixelsCorrection(mlx90640_type.brokenPixels, temps_data_array, mode, &mlx90640_type);
-//     MLX90640_BadPixelsCorrection(mlx90640_type.outlierPixels, temps_data_array, mode, &mlx90640_type);
+/**
+ * @brief Read both subpages and calculate the temperatures.
+ *
+ * @param subpage_temps_0: pointer to the array of subpage temperatures (at least 768 long)
+ * @param subpage_temps_1: pointer to the array of subpage temperatures (at least 768 long)
+ * @param emissivity: emissivity of the object
+ * @param ambient_offset: offset to the ambient temperature
+ * @return int
+ */
+int mlx_read_full_picture(float *subpage_temps_0, float *subpage_temps_1, float emissivity, int8_t ambient_offset)
+{
+    // Get current tick count
+    TickType_t deltatime = xTaskGetTickCount();
+    // Read the first subpage
+    ESP_LOGI(TAG, "Reading the first subpage");
+    if (mlx_get_subpage_temps(subpage_temps_0, emissivity, ambient_offset) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to read the first subpage!");
+        return 1;
+    }
+    ESP_LOGI(TAG, "First subpage read successfully");
+    deltatime = xTaskGetTickCount() - deltatime;
+    deltatime = deltatime / portTICK_PERIOD_MS;
+    ESP_LOGI(TAG, "Deltatime: %lu ms", deltatime);
+    if (deltatime < (MLX_REFRESH_MILLIS * 2))
+        deltatime = MLX_REFRESH_MILLIS * 2 - deltatime;
+    ESP_LOGI(TAG, "Waiting %lu ms", deltatime);
+    // Wait for the next frame
+    TickType_t starting_time = xTaskGetTickCount();
+    vTaskDelayUntil(&starting_time, deltatime / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "Reading the second subpage");
+    // Read the second subpage
+    if (mlx_get_subpage_temps(subpage_temps_1, emissivity, ambient_offset) != 0)
+    {
+        ESP_LOGE(TAG, "Failed to read the second subpage!");
+        return 2;
+    }
 
-//     return 0;
-// }
+    return 0;
+}
+
+/**
+ * @brief Merge both subpages into subpage_temps_0.
+ *
+ * Temperatures from subpage 0 and 1 are add together and stored in subpage_temps_0.
+ *
+ * @param subpage_temps_0
+ * @param subpage_temps_1
+ * @return int
+ */
+int mlx_merge_subpages(float *subpage_temps_0, float *subpage_temps_1)
+{
+    if (subpage_temps_0 == NULL || subpage_temps_1 == NULL)
+    {
+        ESP_LOGE(TAG, "subpage_temps_0 or subpage_temps_1 is NULL!");
+        return 1;
+    }
+    
+    for (int i = 0; i < 768; i++)
+    {
+        subpage_temps_0[i] += subpage_temps_1[i];
+    }
+
+    return 0;
+}

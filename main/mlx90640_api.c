@@ -122,6 +122,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
     uint8_t cnt = 0;
     int timeout = 1000; // Set a timeout to avoid indefinite loop
 
+    // Wait until the data is ready
     while (dataReady == 0 && timeout > 0)
     {
         error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
@@ -131,14 +132,15 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
             return error;
         }
         dataReady = MLX90640_GET_DATA_READY(statusRegister);
-        timeout--;
-        if (timeout <= 0)
+        if (--timeout <= 0)
         {
             ESP_LOGE(TAG, "Timeout waiting for data ready");
             return -1; // Timeout error
         }
     }
+    ESP_LOGI(TAG, "Data read");
 
+    // Reset the data ready bit
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
     if (error != MLX90640_NO_ERROR)
     {
@@ -146,6 +148,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
         return error;
     }
 
+    // Read the subpage data
     error = MLX90640_I2CRead(slaveAddr, MLX90640_PIXEL_DATA_START_ADDRESS, MLX90640_PIXEL_NUM, frameData);
     if (error != MLX90640_NO_ERROR)
     {
@@ -153,6 +156,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
         return error;
     }
 
+    // Read the subpage AUX data
     error = MLX90640_I2CRead(slaveAddr, MLX90640_AUX_DATA_START_ADDRESS, MLX90640_AUX_NUM, data);
     if (error != MLX90640_NO_ERROR)
     {
@@ -160,15 +164,20 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
         return error;
     }
 
+    // Read the current control register mask
     error = MLX90640_I2CRead(slaveAddr, MLX90640_CTRL_REG, 1, &controlRegister1);
     if (error != MLX90640_NO_ERROR)
     {
         ESP_LOGE(TAG, "Error reading control register: %d", error);
         return error;
     }
+
+    // Store the control register mask in the frame data
     frameData[832] = controlRegister1;
+    // Store the frame number (0 or 1) in the frame data
     frameData[833] = MLX90640_GET_FRAME(statusRegister);
 
+    // Validate the AUX data
     error = ValidateAuxData(data);
     if (error == MLX90640_NO_ERROR)
     {
@@ -183,12 +192,15 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
         return error;
     }
 
+    // Validate the subpage data
     error = ValidateFrameData(frameData);
     if (error != MLX90640_NO_ERROR)
     {
         ESP_LOGE(TAG, "Frame data validation failed: %d", error);
         return error;
     }
+
+    // Return the subpage number (0 or 1)
     return frameData[833];
 }
 

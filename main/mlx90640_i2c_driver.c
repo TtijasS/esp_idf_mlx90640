@@ -38,29 +38,18 @@ void MLX90640_I2CInit()
 	ESP_ERROR_CHECK(i2c_master_probe(master_bus_handle, MLX90640_SLAVE_ADR, I2C_TIMEOUT_MS));
 }
 
+/**
+ * @brief Power on reset operation
+ * 
+ * If you check the datasheet the POR is mentioned. Should be writing 0x06 to 0x00, which resets all the register settings
+ * 
+ * @return int 
+ */
 int MLX90640_I2CGeneralReset()
 {
-	int ack = -1;
 	uint8_t write_buffer[2] = {0x00, 0x06};
-	ack = i2c_master_transmit(master_dev_handle, write_buffer, 2, I2C_TIMEOUT_MS);
+	int ack = i2c_master_transmit(master_dev_handle, write_buffer, 2, I2C_TIMEOUT_MS);
 	return ack;
-}
-
-int MLX90640_reset_status_reg(uint16_t *status_reg)
-{
-    if (status_reg == NULL)
-    {
-        ESP_LOGE("MLX90640", "Error: status_reg is NULL");
-        return -1;
-    }
-    
-    // Clear the third bit from the right (bit 2) in the status register
-    uint16_t data_ready_bit_reset = *status_reg & ~MLX90640_STATUS_REG_BIT2;
-    
-    // Perform the I2C write operation
-    int ack = MLX90640_I2CWrite(MLX90640_SLAVE_ADR, 0x8000, data_ready_bit_reset);
-    
-    return ack; // Return the result of the I2C write operation
 }
 
 int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)

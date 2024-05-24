@@ -109,7 +109,7 @@ static const char *TAG = "MLX";
 #define MLX90640_NIBBLE4(reg16) ((reg16 & MLX90640_NIBBLE4_MASK) >> 12)
 
 #define MLX90640_GENERAL_RESET 0x06
-#define MLX90640_DATA_READY 0x0004
+#define MLX90640_DATA_READY_BIT 0x0004
 
 #define POW2(x) pow(2, (double)x)
 
