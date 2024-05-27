@@ -55,7 +55,7 @@ int MLX90640_SynchFrame(uint8_t slaveAddr)
     {
         return error;
     }
-
+    MLX90640_GetSubPageNumber(&statusRegister);
     while (dataReady == 0)
     {
         error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
@@ -138,8 +138,6 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
             return -1; // Timeout error
         }
     }
-    ESP_LOGI(TAG, "Data read");
-
     // Reset the data ready bit
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
     if (error != MLX90640_NO_ERROR)
