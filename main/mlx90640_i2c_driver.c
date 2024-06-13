@@ -40,10 +40,10 @@ void MLX90640_I2CInit()
 
 /**
  * @brief Power on reset operation
- * 
+ *
  * If you check the datasheet the POR is mentioned. Should be writing 0x06 to 0x00, which resets all the register settings
- * 
- * @return int 
+ *
+ * @return int
  */
 int MLX90640_I2CGeneralReset()
 {
@@ -73,6 +73,12 @@ int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddr
 		ESP_LOGI(TAG, "Error: Failed to allocate memory for read_buffer");
 		free(write_buffer);
 		return -1;
+	}
+
+	// Initialize read buffer to 0
+	for (int i = 0; i < nMemAddressRead*2; i++)
+	{
+		read_buffer[i] = 0;
 	}
 
 	esp_err_t err;

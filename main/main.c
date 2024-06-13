@@ -37,29 +37,51 @@ paramsMLX90640 mlx90640_params = {
 
 // ----------------- Prototypes -----------------
 void mlx_delay_after_por();
-void mlx_delay_before_frame();
+void mlx_delay_before_subpage();
 int mlx_read_extract_eeprom();
 int mlx_get_subpage_temps(float *subpage_temps, float emissivity, int8_t ambient_offset, uint8_t subpage_number);
 int mlx_read_full_picture(float *subpage_temps_0, float *subpage_temps_1, float emissivity, int8_t ambient_offset);
 int mlx_merge_subpages(float *subpage_temps_0, float *subpage_temps_1);
 
 // ----------------- Definitions -----------------
-#define MLX_REFRESH_RATE MLX_REFRESH_16HZ
-#define MLX_REFRESH_MILLIS MLX_16_HZ_MILLIS
-static int delay_before_reading = MLX_REFRESH_MILLIS * 2 * .8;
+
+static int delay_between_subpages = MLX_REFRESH_MILLIS * .7;
+static int delay_between_frames = MLX_REFRESH_MILLIS * 2 * .9;
+
 
 // ----------------- Main -----------------
 void app_main(void)
 {
-    // while (1)
+    // Example of counting time with vTaskDelay (10 milliseconds precision)
+    // printf("port tick period ms: %ld\n", portTICK_PERIOD_MS);
+    // TickType_t last_wake_time = xTaskGetTickCount();
+    // TickType_t deltatime = 0;
+    // for (int i = 0; i < 10; i++)
     // {
-    //     printf("%08x\n", 0xFFFFFFF1);
-    //     for (int i = 0; i < 768; i++)
-    //     {
-    //         printf("%.2f;", 12.34);
-    //     }
-    //     printf("%08x\n", 0xF1FFFFFF);
-    //     vTaskDelay(250 / portTICK_PERIOD_MS);
+    //     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    //     deltatime = (xTaskGetTickCount() - last_wake_time) * portTICK_PERIOD_MS;
+    //     // last_wake_time = xTaskGetTickCount();
+    //     printf("Deltatime: %ld\n", deltatime);
+    // }
+    // return;
+
+    // Example of counting time with esp_timer (1 microsecond precision)
+    // uint64_t start_time = esp_timer_get_time();
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // }
+    // uint64_t end_time = esp_timer_get_time();
+    // printf("Deltatime: %lld\n", (end_time - start_time) / 1000);
+    // return;
+    // for(int i = 0; i < 20; i++)
+    // {
+    //     // take current time and pring out deltatime at the end
+    //     uint64_t start_time = esp_timer_get_time();
+    //     // mlx_delay_before_subpage();
+    //     vTaskDelay(800 / portTICK_PERIOD_MS);
+    //     uint64_t end_time = esp_timer_get_time();
+    //     printf("%lld\n", (end_time - start_time) / 1000);
     // }
     // return;
     // Initialize the I2C bus
@@ -90,8 +112,39 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to allocate memory for frame data");
         return;
     }
-    // Set all to 0
+    // ##################################################### TESTING FRAME SYNCHRONIZATION
+    // uint16_t *subpage_raw_data = (uint16_t *)malloc(834 * sizeof(uint16_t));
+    // if (subpage_raw_data == NULL)
+    // {
+    //     ESP_LOGE(TAG, "frame_data is NULL!");
+    // }
+    // // Set all values to 0
+    // for (int i = 0; i < 834; i++)
+    // {
+    //     subpage_raw_data[i] = 0;
+    // }
 
+    // int frame_number = -1;
+
+    // // Set all to 0
+    // MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
+    // uint64_t start_time = esp_timer_get_time();
+    // uint64_t deltatime = 0;
+
+    // while(1)
+    // {
+    //     // MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
+    //     frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, subpage_raw_data);
+    //     ESP_LOGI(TAG, "Frame number: %d", frame_number);        
+    //     deltatime = (esp_timer_get_time() - start_time) / 1000;
+    //     ESP_LOGI(TAG, "deltatime: %lld", deltatime);
+    //     start_time = esp_timer_get_time();
+    // }
+    // #####################################################
+    MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
+    uint64_t start_time = esp_timer_get_time();
+    uint64_t deltatime = 0;
+    uint64_t deltatime_diff = 0;
     while (1)
     {
         for (int i = 0; i < 768; i++)
@@ -99,13 +152,28 @@ void app_main(void)
             subpage_0[i] = 0;
             subpage_1[i] = 0;
         }
-        MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
-        mlx_delay_before_frame();
+
+        deltatime = (esp_timer_get_time() - start_time) / 1000;
+        ESP_LOGI(TAG, "Other tasks deltatime: %lld ms", deltatime);
+
+        if (deltatime < delay_between_subpages)
+        {
+            deltatime_diff = (delay_between_subpages - deltatime);
+            ESP_LOGI(TAG, "adding delay: %lld ms", deltatime_diff);
+            vTaskDelay(deltatime_diff / portTICK_PERIOD_MS);
+        }
+        start_time = esp_timer_get_time();
         if (mlx_read_full_picture(subpage_0, subpage_1, .97, -8) != 0)
         {
             ESP_LOGE(TAG, "Failed to read the full picture");
-            return;
+            MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
+            start_time = esp_timer_get_time();
+            // mlx_delay_before_subpage(); // delay to prevent the missalignment of the subpages
+            continue;
         }
+        deltatime = (esp_timer_get_time() - start_time) / 1000;
+        ESP_LOGI(TAG, "Full frame deltatime: %lld ms", deltatime);
+        start_time = esp_timer_get_time();
         if (mlx_merge_subpages(subpage_0, subpage_1) != 0)
         {
             ESP_LOGE(TAG, "Failed to merge subpages");
@@ -151,10 +219,10 @@ void mlx_delay_after_por()
  * @brief Delay the correct ammount of time before the next frame.
  *
  */
-void mlx_delay_before_frame()
+void mlx_delay_before_subpage()
 {
     TickType_t starting_time = xTaskGetTickCount();
-    vTaskDelayUntil(&starting_time, delay_before_reading / portTICK_PERIOD_MS);
+    vTaskDelayUntil(&starting_time, delay_between_subpages / portTICK_PERIOD_MS);
 }
 
 /**
@@ -229,22 +297,16 @@ int mlx_get_subpage_temps(float *subpage_temps, float emissivity, int8_t ambient
     }
 
     int frame_number = -1;
-    for (int i = 0; i < 4; i++)
-    {
-        MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
-        frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, subpage_raw_data);
-        if (frame_number == subpage_number)
-            break;
-    }
 
+    // MLX90640_SynchFrame(MLX90640_SLAVE_ADR);
+    frame_number = MLX90640_GetFrameData(MLX90640_SLAVE_ADR, subpage_raw_data);
     if (frame_number != subpage_number)
     {
-        ESP_LOGE(TAG, "Failed to get the correct frame number");
+        ESP_LOGE(TAG, "Wrong subpage: (wanted: %d, read: %d)", subpage_number, frame_number);
         free(subpage_raw_data);
         return -3;
     }
 
-    // ESP_LOGI(TAG, "Frame %d ready", frame_number);
     // Get the ambient temperature
     float ambient_temperature = MLX90640_GetTa(subpage_raw_data, &mlx90640_params);
     ambient_temperature += ambient_offset; // offset the ambient temperature
@@ -276,18 +338,22 @@ int mlx_read_full_picture(float *subpage_temps_0, float *subpage_temps_1, float 
 {
     // Read the first subpage
     // ESP_LOGI(TAG, "Reading the first subpage");
-    if (mlx_get_subpage_temps(subpage_temps_0, emissivity, ambient_offset, 0) != 0)
-    {
-        ESP_LOGE(TAG, "Failed to read the first subpage!");
-        return 1;
+    int page_number = -404;
+
+    // Read subpage 0
+    page_number = mlx_get_subpage_temps(subpage_temps_0, emissivity, ambient_offset, 0);
+    if (page_number != 0 ){
+        ESP_LOGE(TAG, "mlx_read_full_picture: Failed to read subpage 0. Error: %d", page_number);
+        return -1;
     }
-    // ESP_LOGI(TAG, "First subpage read successfully");
-    mlx_delay_before_frame();
-    // Read the second subpage
-    if (mlx_get_subpage_temps(subpage_temps_1, emissivity, ambient_offset, 1) != 1)
+
+    mlx_delay_before_subpage();
+    // Read subpage 1
+    page_number = mlx_get_subpage_temps(subpage_temps_1, emissivity, ambient_offset, 1);
+    if (page_number != 1)
     {
-        ESP_LOGE(TAG, "Failed to read the second subpage!");
-        return 2;
+        ESP_LOGE(TAG, "mlx_read_full_picture: Failed to read subpage 1. Error: %d", page_number);
+        return -2;
     }
 
     return 0;

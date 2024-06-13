@@ -18,6 +18,7 @@
 #include <mlx90640_api.h>
 #include <math.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_timer.h"
 
 static void ExtractVDDParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
 static void ExtractPTATParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
@@ -47,7 +48,7 @@ int MLX90640_DumpEE(uint8_t slaveAddr, uint16_t *eeData)
 int MLX90640_SynchFrame(uint8_t slaveAddr)
 {
     uint16_t dataReady = 0;
-    uint16_t statusRegister;
+    uint16_t statusRegister = 0;
     int error = 1;
 
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
@@ -55,7 +56,11 @@ int MLX90640_SynchFrame(uint8_t slaveAddr)
     {
         return error;
     }
-    MLX90640_GetSubPageNumber(&statusRegister);
+
+    // Added timeout to prevent infinite loop
+    uint64_t timeout = MLX_REFRESH_MILLIS * 2 * 1000; // esp timer is in micros
+    uint64_t deltatime = 0;
+    uint64_t start_time = esp_timer_get_time();
     while (dataReady == 0)
     {
         error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
@@ -65,6 +70,13 @@ int MLX90640_SynchFrame(uint8_t slaveAddr)
         }
         // dataReady = statusRegister & 0x0008;
         dataReady = MLX90640_GET_DATA_READY(statusRegister);
+
+        deltatime = esp_timer_get_time() - start_time;
+        if (deltatime > timeout)
+        {
+            ESP_LOGE(TAG, "Timeout synching frame");
+            return -1; // Timeout error
+        }
     }
 
     return MLX90640_NO_ERROR;
@@ -120,10 +132,12 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
     int error = 1;
     uint16_t data[64];
     uint8_t cnt = 0;
-    int timeout = 1000; // Set a timeout to avoid indefinite loop
 
-    // Wait until the data is ready
-    while (dataReady == 0 && timeout > 0)
+    // Added timeout to prevent infinite loop
+    uint64_t timeout = MLX_REFRESH_MILLIS * 2 * 1000; // esp timer is in micros
+    uint64_t deltatime = 0;
+    uint64_t start_time = esp_timer_get_time();
+    while (dataReady == 0)
     {
         error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
         if (error != MLX90640_NO_ERROR)
@@ -132,9 +146,11 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
             return error;
         }
         dataReady = MLX90640_GET_DATA_READY(statusRegister);
-        if (--timeout <= 0)
+
+        deltatime = esp_timer_get_time() - start_time;
+        if (deltatime > timeout)
         {
-            ESP_LOGE(TAG, "Timeout waiting for data ready");
+            ESP_LOGE(TAG, "Timeout getting frame");
             return -1; // Timeout error
         }
     }
