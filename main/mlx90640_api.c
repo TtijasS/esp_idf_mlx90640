@@ -124,7 +124,7 @@ int MLX90640_TriggerMeasurement(uint8_t slaveAddr)
     return MLX90640_NO_ERROR;
 }
 
-int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
+int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last_wake_time)
 {
     uint16_t dataReady = 0;
     uint16_t controlRegister1;
@@ -134,7 +134,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
     uint8_t cnt = 0;
 
     // Added timeout to prevent infinite loop
-    uint64_t timeout = MLX_REFRESH_MILLIS * 2 * 1000; // esp timer is in micros
+    uint64_t timeout = MLX_REFRESH_MILLIS * 1000; // esp timer is in micros, therefore t * 1000
     uint64_t deltatime = 0;
     uint64_t start_time = esp_timer_get_time();
     while (dataReady == 0)
@@ -154,6 +154,7 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData)
             return -1; // Timeout error
         }
     }
+    *last_wake_time = xTaskGetTickCount();
     // Reset the data ready bit
     error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
     if (error != MLX90640_NO_ERROR)
