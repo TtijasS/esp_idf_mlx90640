@@ -3,7 +3,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
+#include <string.h> // Include string.h for memcpy
 #include <stdio.h>
+#include "driver/uart.h"
 
 paramsMLX90640 mlx90640_params = {
     .kVdd = 0,
@@ -42,14 +44,20 @@ int mlx_read_extract_eeprom();
 int mlx_get_subpage_temps(float *, float, int8_t, uint8_t, TickType_t *);
 int mlx_read_full_picture(float *, float *, float , int8_t, TickType_t *);
 int mlx_merge_subpages(float *, float *);
+void init_uart();
+void send_float_over_uart(float);
+void send_frame_over_uart(float *);
 
 // ----------------- Constants -----------------
 const int DELAY_BETWEEN_SUBPAGES = MLX_REFRESH_MILLIS * 0.9;
 
-
+const uart_port_t uart_num = UART_NUM_0;
+const int uart_buffer_size = (772 * sizeof(float)*4);
 // ----------------- Main -----------------
 void app_main(void)
 {
+    ESP_LOGI(TAG, "Initializing UART");
+    init_uart();
     // Example of counting time with vTaskDelay and xTaskDelayUntil
     // printf("port tick period ms: %ld\n", pdTICKS_TO_MS(1));
     // TickType_t last_wake_time = xTaskGetTickCount();
@@ -152,7 +160,6 @@ void app_main(void)
     int deltatime_diff = 0;
     while (1)
     {
-        // Take current tick count
         for (int i = 0; i < 768; i++)
         {
             subpage_0[i] = 0;
@@ -173,20 +180,7 @@ void app_main(void)
             return;
         }
 
-        printf("%02x\n", 0x1F);
-        for (int i = 0; i < 768; i++)
-        {
-            if (i == 767)
-            {
-                printf("%.2f\n", subpage_0[i]);
-                break;
-            }
-            else
-            {
-                printf("%.2f;", subpage_0[i]);
-            }
-        }
-        printf("%02x\n", 0xF1);
+        send_frame_over_uart(subpage_0);
 
         deltatime = pdTICKS_TO_MS(xTaskGetTickCount() - last_wake_time);
         deltatime_diff = DELAY_BETWEEN_SUBPAGES - deltatime;
@@ -198,6 +192,7 @@ void app_main(void)
         else
         {
             ESP_LOGI(TAG, "deltatime_diff: %d", deltatime_diff);
+
         }
 
     }
@@ -376,4 +371,50 @@ int mlx_merge_subpages(float *subpage_temps_0, float *subpage_temps_1)
     }
 
     return 0;
+}
+
+void init_uart()
+{
+    // Configure UART parameters
+    uart_config_t uart_config = {
+        .baud_rate = UART_BAUD_RATE, // You can change this to your required baud rate
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+    };
+
+    ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
+
+    // Set UART pins (TX: GPIO43, RX: GPIO44, RTS: unused, CTS: unused)
+    ESP_ERROR_CHECK(uart_set_pin(uart_num, 43, 44, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    // Install UART driver using an event queue here
+    ESP_ERROR_CHECK(uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, NULL, 0));
+}
+
+void send_float_over_uart(float value)
+{
+    uint8_t data[sizeof(float)];
+    memcpy(data, &value, sizeof(float));
+    uart_write_bytes(uart_num, (const char *)data, sizeof(float));
+}
+
+void send_frame_over_uart(float *frame_data)
+{
+    uart_write_bytes(uart_num, "\xfe\xfe\xfe\xfe", 4);
+
+    // Size of each chunk
+    const size_t chunk_size = 384; // Adjust based on your UART buffer capacity
+    const size_t total_floats = 768;
+    uint8_t buffer[chunk_size * sizeof(float)];
+
+    for (size_t i = 0; i < total_floats; i += chunk_size)
+    {
+        size_t current_chunk_size = (total_floats - i) < chunk_size ? (total_floats - i) : chunk_size;
+        memcpy(buffer, &frame_data[i], current_chunk_size * sizeof(float));
+        uart_write_bytes(uart_num, (const char *)buffer, current_chunk_size * sizeof(float));
+    }
+
+    return;
 }

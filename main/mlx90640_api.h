@@ -23,6 +23,7 @@ static const char *TAG = "MLX";
 #define I2C_SDA_IO CONFIG_I2C_MASTER_SDA // GPIO number used for I2C master data
 #define I2C_PORT_NUM I2C_NUM_0           // I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip
 #define I2C_FREQ_HZ 100000               // I2C master clock frequency
+#define UART_BAUD_RATE 3000000            // UART baud rate
 #define I2C_TIMEOUT_MS 1000              // I2C timeout in milliseconds
 #define MLX90640_SLAVE_ADR 0x33
 
@@ -55,8 +56,8 @@ static const char *TAG = "MLX";
 
 // ############################# REFRESH CONFIGURATION #############################
 // SETUP REFRESH RATE AND DELAY MILLIS
-#define MLX_REFRESH_RATE MLX_REFRESH_2HZ
-#define MLX_REFRESH_MILLIS MLX_2_HZ_MILLIS
+#define MLX_REFRESH_RATE MLX_REFRESH_4HZ
+#define MLX_REFRESH_MILLIS MLX_4_HZ_MILLIS
 // #################################################################################
 
 #define MLX90640_NO_ERROR 0
