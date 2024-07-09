@@ -14,11 +14,7 @@
  * limitations under the License.
  *
  */
-#include <mlx90640_i2c_driver.h>
 #include <mlx90640_api.h>
-#include <math.h>
-#include "freertos/FreeRTOS.h"
-#include "esp_timer.h"
 
 static void ExtractVDDParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);
 static void ExtractPTATParameters(uint16_t *eeData, paramsMLX90640 *mlx90640);

@@ -1,5 +1,4 @@
 #include "mlx90640_i2c_driver.h"
-#include "mlx90640_api.h"
 
 // Define the I2C master bus configuration
 const i2c_master_bus_config_t master_bus_config = {

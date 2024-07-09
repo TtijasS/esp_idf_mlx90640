@@ -1,0 +1,18 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.adapterTargetName": "esp32s3",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.flashType": "UART",
+  "idf.portWin": "COM7",
+  "files.associations": {
+    "freertos.h": "c",
+    "constants.h": "c",
+    "mlx90640_i2c_driver.h": "c",
+    "*.inc": "c",
+    "cstdint": "c",
+    "condition_variable": "c",
+    "future": "c"
+  }
+}
