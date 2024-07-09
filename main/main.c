@@ -1,10 +1,10 @@
-#include "mlx90640_i2c_driver.h"
-#include "mlx90640_api.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
 #include <string.h> // Include string.h for memcpy
 #include <stdio.h>
+#include "mlx90640_i2c_driver.h"
+#include "mlx90640_api.h"
 #include "constants.h"
 #include "custom_uart.h"
 #include "custom_mlx_functions.h"
@@ -82,7 +82,6 @@ void app_main(void)
             ESP_LOGI(TAG, "deltatime_diff: %d", deltatime_diff);
 
         }
-
     }
 
     // Print the temperatures
@@ -91,6 +90,3 @@ void app_main(void)
 
     ESP_ERROR_CHECK(i2c_del_master_bus(master_bus_handle));
 }
-
-
-

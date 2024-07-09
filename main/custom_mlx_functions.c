@@ -181,9 +181,9 @@ paramsMLX90640 mlx90640_params = {
      * @param subpage_temps_1
      * @return int
      */
-    int mlx_merge_subpages(float *subpage_temps_0, float *subpage_temps_1)
+    int mlx_merge_subpages(float *whole_frame, float *subpage_temps_0, float *subpage_temps_1)
     {
-        if (subpage_temps_0 == NULL || subpage_temps_1 == NULL)
+        if (whole_frame == NULL || subpage_temps_0 == NULL || subpage_temps_1 == NULL)
         {
             ESP_LOGE(TAG, "subpage_temps_0 or subpage_temps_1 is NULL!");
             return 1;
@@ -191,7 +191,7 @@ paramsMLX90640 mlx90640_params = {
 
         for (int i = 0; i < 768; i++)
         {
-            subpage_temps_0[i] += subpage_temps_1[i];
+            whole_frame[i] = subpage_temps_0[i] + subpage_temps_1[i];
         }
 
         return 0;
