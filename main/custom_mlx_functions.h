@@ -13,7 +13,7 @@ void mlx_delay_after_por();
 int mlx_read_extract_eeprom();
 int mlx_get_subpage_temps(float *, float , int8_t , uint8_t , TickType_t *);
 int mlx_read_full_picture(float *, float *, float , int8_t , TickType_t *);
-int mlx_merge_subpages(float *, float *, float *);
+int mlx_merge_subpages(float *, float *);
 
 
 #endif // CUSTOM_MLX_FUNCTIONS_H

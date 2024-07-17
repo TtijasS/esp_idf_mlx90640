@@ -4,7 +4,7 @@ const uart_port_t uart_num = UART_NUM_0;
 const int uart_buffer_size = (772 * sizeof(float)*4);
 
 uart_config_t uart_config = {
-	.baud_rate = UART_BAUD_RATE, // You can change this to your required baud rate
+	.baud_rate = 115200, // You can change this to your required baud rate
 	.data_bits = UART_DATA_8_BITS,
 	.parity = UART_PARITY_DISABLE,
 	.stop_bits = UART_STOP_BITS_1,
@@ -37,6 +37,9 @@ void send_frame_over_uart(float *frame_data)
     const size_t total_floats = 768;
     uint8_t buffer[chunk_size * sizeof(float)];
 
+    // for (size_t i = 0; i < total_floats; i++){
+    //     printf("%.3f, ", frame_data[i]);
+    // }
     for (size_t i = 0; i < total_floats; i += chunk_size)
     {
         size_t current_chunk_size = (total_floats - i) < chunk_size ? (total_floats - i) : chunk_size;
