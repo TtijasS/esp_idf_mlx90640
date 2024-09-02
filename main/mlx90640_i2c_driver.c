@@ -28,13 +28,29 @@ i2c_master_dev_handle_t master_dev_handle;
  * @param void
  * @return void
  */
-void MLX90640_I2CInit()
+int MLX90640_I2CInit()
 {
+	const char *TAG = "MLX90640_I2CInit";
+	int error_code = 0;
+
 	// Initialize the I2C bus
-	ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_master_bus_config, &master_bus_handle));
-	ESP_ERROR_CHECK(i2c_master_bus_add_device(master_bus_handle, &i2c_master_device_config, &master_dev_handle));
-	// Probe the slave device
-	ESP_ERROR_CHECK(i2c_master_probe(master_bus_handle, MLX90640_SLAVE_ADR, I2C_TIMEOUT_MS));
+
+	if ((error_code = i2c_new_master_bus(&i2c_master_bus_config, &master_bus_handle)) != 0)
+	{
+		ESP_LOGE(TAG, "Failed to create new i2c master bus. Error %d", error_code);
+		return -1;
+	}
+	if ((error_code = i2c_master_bus_add_device(master_bus_handle, &i2c_master_device_config, &master_dev_handle)) != 0)
+	{
+		ESP_LOGE(TAG, "Failed to add new i2c device to master bus. Error %d", error_code);
+		return -2;
+	}
+	if ((error_code = i2c_master_probe(master_bus_handle, MLX90640_SLAVE_ADR, I2C_TIMEOUT_MS)) != 0)
+	{
+		ESP_LOGE(TAG, "Failed to master probe. Error %d", error_code);
+		return -3;
+	}
+	return 0;
 }
 
 /**
@@ -53,45 +69,38 @@ int MLX90640_I2CGeneralReset()
 
 int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)
 {
-	if (nMemAddressRead * 2 > 1664)
+	int error_code = 0;
+	const char *TAG = "MLX90640_I2cRead";
+	if ((nMemAddressRead * 2) > (832 * 2))
 	{
 		ESP_LOGI(TAG, "Error: Too many bytes to read. Max 832 words allowed (1664 bytes)");
 		return -1;
 	}
 
-	uint8_t *write_buffer = (uint8_t *)malloc(2);
-	if (write_buffer == NULL)
-	{
-		ESP_LOGI(TAG, "Error: Failed to allocate memory for write_buffer");
-		return -1;
-	}
+	uint8_t write_buffer[2] = {0};
 
 	uint8_t *read_buffer = (uint8_t *)malloc(nMemAddressRead * 2);
 	if (read_buffer == NULL)
 	{
 		ESP_LOGI(TAG, "Error: Failed to allocate memory for read_buffer");
-		free(write_buffer);
-		return -1;
+		return -2;
 	}
 
 	// Initialize read buffer to 0
-	for (int i = 0; i < nMemAddressRead*2; i++)
+	for (int i = 0; i < nMemAddressRead * 2; i++)
 	{
 		read_buffer[i] = 0;
 	}
-
-	esp_err_t err;
 
 	// Prepare write buffer
 	write_buffer[0] = startAddress >> 8;
 	write_buffer[1] = startAddress & 0x00FF;
 
-	err = i2c_master_transmit_receive(master_dev_handle, write_buffer, 2, read_buffer, nMemAddressRead * 2, I2C_TIMEOUT_MS);
-	if (err != ESP_OK)
+	if (i2c_master_transmit_receive(master_dev_handle, write_buffer, 2, read_buffer, nMemAddressRead * 2, I2C_TIMEOUT_MS) != ESP_OK)
 	{
-		free(write_buffer);
 		free(read_buffer);
-		return -1;
+		return -3;
+		
 	}
 
 	for (int i = 0; i < nMemAddressRead; i++)
@@ -99,13 +108,13 @@ int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddr
 		data[i] = read_buffer[i * 2] << 8 | read_buffer[i * 2 + 1];
 	}
 
-	free(write_buffer);
 	free(read_buffer);
 	return 0;
 }
 
 int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 {
+	const char *TAG = "MLX90640_I2CWrite";
 	uint8_t write_buffer[4];
 
 	write_buffer[0] = writeAddress >> 8;
@@ -113,11 +122,10 @@ int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 	write_buffer[2] = data >> 8;
 	write_buffer[3] = data & 0x00FF;
 
-	esp_err_t err = i2c_master_transmit(master_dev_handle, write_buffer, 4, I2C_TIMEOUT_MS);
-	if (err != ESP_OK)
+	if (i2c_master_transmit(master_dev_handle, write_buffer, 4, I2C_TIMEOUT_MS) != ESP_OK)
 	{
-		ESP_LOGI(TAG, "Error: %s", esp_err_to_name(err));
-		return (int)err;
+		ESP_LOGI(TAG, "Error i2c master transmit");
+		return -1;
 	}
 
 	return 0;

@@ -17,10 +17,10 @@
 #ifndef _MLX90640_API_H_
 #define _MLX90640_API_H_
 
-#include <mlx90640_i2c_driver.h>
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_timer.h"
+#include <mlx90640_i2c_driver.h>
 
 #define MLX90640_NO_ERROR 0
 #define MLX90640_I2C_NACK_ERROR 1

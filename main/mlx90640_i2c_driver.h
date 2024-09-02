@@ -17,18 +17,18 @@
 #ifndef _MLX90640_I2C_Driver_H_
 #define _MLX90640_I2C_Driver_H_
 
-#include "mlx90640_i2c_driver.h"
 #include <stdint.h>
-#include <driver/i2c_master.h>
 #include <esp_log.h>
+#include <driver/i2c_master.h>
 #include "constants.h"
+#include "mlx90640_i2c_driver.h"
 
 // Extern declarations for global configurations and handles
 extern const i2c_master_bus_config_t i2c_master_bus_config;
 extern const i2c_device_config_t i2c_master_device_config;
 extern i2c_master_bus_handle_t master_bus_handle;
 extern i2c_master_dev_handle_t master_dev_handle;
-extern void MLX90640_I2CInit(void);
+extern int MLX90640_I2CInit(void);
 extern int MLX90640_I2CGeneralReset(void);
 extern int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data);
 extern int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data);

@@ -43,6 +43,7 @@ int MLX90640_DumpEE(uint8_t slaveAddr, uint16_t *eeData)
 
 int MLX90640_SynchFrame(uint8_t slaveAddr)
 {
+    const char *TAG = "MLX90640_SynchFrame";
     uint16_t dataReady = 0;
     uint16_t statusRegister = 0;
     int error = 1;
@@ -122,10 +123,12 @@ int MLX90640_TriggerMeasurement(uint8_t slaveAddr)
 
 int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last_wake_time)
 {
+    const char *TAG = "MLX90640_GetFrameData";
+    
     uint16_t dataReady = 0;
     uint16_t controlRegister1;
     uint16_t statusRegister;
-    int error = 1;
+    int error_code = 1;
     uint16_t data[64];
     uint8_t cnt = 0;
 
@@ -135,11 +138,11 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last
     uint64_t start_time = esp_timer_get_time();
     while (dataReady == 0)
     {
-        error = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
-        if (error != MLX90640_NO_ERROR)
+        error_code = MLX90640_I2CRead(slaveAddr, MLX90640_STATUS_REG, 1, &statusRegister);
+        if (error_code != MLX90640_NO_ERROR)
         {
-            ESP_LOGE(TAG, "Error reading status register: %d", error);
-            return error;
+            ESP_LOGE(TAG, "Error reading status register: %d", error_code);
+            return error_code;
         }
         dataReady = MLX90640_GET_DATA_READY(statusRegister);
 
@@ -152,35 +155,35 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last
     }
     *last_wake_time = xTaskGetTickCount();
     // Reset the data ready bit
-    error = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
-    if (error != MLX90640_NO_ERROR)
+    error_code = MLX90640_I2CWrite(slaveAddr, MLX90640_STATUS_REG, MLX90640_INIT_STATUS_VALUE);
+    if (error_code != MLX90640_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Error writing to status register: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Error writing to status register: %d", error_code);
+        return error_code;
     }
 
     // Read the subpage data
-    error = MLX90640_I2CRead(slaveAddr, MLX90640_PIXEL_DATA_START_ADDRESS, MLX90640_PIXEL_NUM, frameData);
-    if (error != MLX90640_NO_ERROR)
+    error_code = MLX90640_I2CRead(slaveAddr, MLX90640_PIXEL_DATA_START_ADDRESS, MLX90640_PIXEL_NUM, frameData);
+    if (error_code != MLX90640_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Error reading pixel data: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Error reading pixel data: %d", error_code);
+        return error_code;
     }
 
     // Read the subpage AUX data
-    error = MLX90640_I2CRead(slaveAddr, MLX90640_AUX_DATA_START_ADDRESS, MLX90640_AUX_NUM, data);
-    if (error != MLX90640_NO_ERROR)
+    error_code = MLX90640_I2CRead(slaveAddr, MLX90640_AUX_DATA_START_ADDRESS, MLX90640_AUX_NUM, data);
+    if (error_code != MLX90640_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Error reading aux data: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Error reading aux data: %d", error_code);
+        return error_code;
     }
 
     // Read the current control register mask
-    error = MLX90640_I2CRead(slaveAddr, MLX90640_CTRL_REG, 1, &controlRegister1);
-    if (error != MLX90640_NO_ERROR)
+    error_code = MLX90640_I2CRead(slaveAddr, MLX90640_CTRL_REG, 1, &controlRegister1);
+    if (error_code != MLX90640_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Error reading control register: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Error reading control register: %d", error_code);
+        return error_code;
     }
 
     // Store the control register mask in the frame data
@@ -189,8 +192,8 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last
     frameData[833] = MLX90640_GET_FRAME(statusRegister);
 
     // Validate the AUX data
-    error = ValidateAuxData(data);
-    if (error == MLX90640_NO_ERROR)
+    error_code = ValidateAuxData(data);
+    if (error_code == MLX90640_NO_ERROR)
     {
         for (cnt = 0; cnt < MLX90640_AUX_NUM; cnt++)
         {
@@ -199,16 +202,16 @@ int MLX90640_GetFrameData(uint8_t slaveAddr, uint16_t *frameData, uint32_t *last
     }
     else
     {
-        ESP_LOGE(TAG, "Aux data validation failed: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Aux data validation failed: %d", error_code);
+        return error_code;
     }
 
     // Validate the subpage data
-    error = ValidateFrameData(frameData);
-    if (error != MLX90640_NO_ERROR)
+    error_code = ValidateFrameData(frameData);
+    if (error_code != MLX90640_NO_ERROR)
     {
-        ESP_LOGE(TAG, "Frame data validation failed: %d", error);
-        return error;
+        ESP_LOGE(TAG, "Frame data validation failed: %d", error_code);
+        return error_code;
     }
 
     // Return the subpage number (0 or 1)
