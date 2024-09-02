@@ -1,18 +1,24 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 // ----------------- Constants -----------------
-static const char *TAG = "MLX";
+extern const int DELAY_BETWEEN_SUBPAGES;
 
 #define I2C_SCL_IO CONFIG_I2C_MASTER_SCL // GPIO number used for I2C master clock
 #define I2C_SDA_IO CONFIG_I2C_MASTER_SDA // GPIO number used for I2C master data
-#define I2C_PORT_NUM I2C_NUM_0           // I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip
-#define I2C_FREQ_HZ 400000               // I2C master clock frequency
-#define UART_BAUD_RATE 3000000            // UART baud rate
-#define I2C_TIMEOUT_MS 1000              // I2C timeout in milliseconds
+#define I2C_PORT_NUM I2C_NUM_0			 // I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip
+#define I2C_FREQ_HZ 400000				 // I2C master clock frequency
+#define I2C_TIMEOUT_MS 1000				 // I2C timeout in milliseconds
 #define MLX90640_SLAVE_ADR 0x33
+#define MLX_FRAME_SIZE 768
 
-
-
+// Stack sizes
+#define TASK_INIT_STACK_SIZE (1024*5)
+#define TASK_GET_SUBPAGES_STACK_SIZE (1024*4)
+#define TASK_UART_FRAME_DATA_STACK_SIZE (1024*2)
+#define TASK_MERGE_SUBPAGES_STACK_SIZE (1024*2)
+#define TASK_ISRUART_STACK_SIZE (1024*2)
+#define TASK_MSG_Q_STACK_SIZE (1024*2)
+#define DEBUG_STACKS 1
 
 // ############################# REFRESH CONFIGURATION #############################
 // --------- UNCOMMENT ONE OF THE FOLLOWING LINES TO SET THE REFRESH RATE ---------
@@ -63,7 +69,5 @@ static const char *TAG = "MLX";
 #define MLX_REFRESH_RATE MLX_REFRESH_0_5_HZ
 #define MLX_REFRESH_MILLIS MLX_0_5_HZ_MILLIS
 #endif
-// #################################################################################
-extern const int DELAY_BETWEEN_SUBPAGES;
 
 #endif // CONSTANTS_H
