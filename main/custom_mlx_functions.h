@@ -4,8 +4,10 @@
 #include "stdlib.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "mlx90640_api.h"
 #include "constants.h"
+#include "mlx90640_api.h"
+#include "uart_isr_handler.h"
+
 
 extern paramsMLX90640 mlx90640_params;
 
