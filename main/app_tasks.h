@@ -1,32 +1,44 @@
-// #ifndef APP_TASKS_H
-// #define APP_TASKS_H
+#ifndef APP_TASKS_H
+#define APP_TASKS_H
 
-// #include <freertos/task.h>
-// #include <freertos/queue.h>
-// #include <freertos/semphr.h>
-// #include "custom_uart.h"
-// #include "constants.h"
-// #include "mlx90640_api.h"
-// #include "mlx90640_i2c_driver.h"
-// #include "custom_mlx_functions.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "constants.h"
+#include "mlx90640_api.h"
+#include "mlx90640_i2c_driver.h"
+#include "custom_mlx_functions.h"
+#include "uart_isr_handler.h"
 
-// extern TaskHandle_t task_read_frame_handle;
-// extern TaskHandle_t task_uart_send_frame_handle;
-// extern TaskHandle_t task_synchronize_handle;
+extern SemaphoreHandle_t semphr_request_image;
 
-// extern TickType_t last_wake_time;
-// extern TickType_t deltatime;
-// extern int deltatime_diff;
-// extern float *subpage_0;
-// extern float *subpage_1;
-// extern float *whole_frame;
+extern QueueHandle_t queue_uart_isr_event_queue; // UART ISR queue
+extern QueueHandle_t queue_enqueued_msg_processing;
 
-// void task_initialization(void *);
-// void task_read_frame(void *);
-// void task_uart_send_frame(void *);
-// void task_apply_synchronization_delay(void *pvParameters);
+typedef struct TaskQueueMessage_type
+{
+	size_t msg_size;
+	uint8_t *msg_ptr;
+	
+}TaskQueueMessage_type;
 
 
+extern float *subpage_0;
+extern float *subpage_1;
 
+// MLX tasks
+void task_initialization(void *params);
+void task_mlx_get_subpages(void *params);
+void task_mlx_merge_subpages(void *params);
+void task_mlx_uart_frame_data(void *params);
 
-// #endif // APP_TASKS_H
+// UART ISR MONITORING
+void task_uart_isr_monitoring(void *);
+void task_queue_msg_handler(void *);
+
+#endif // APP_TASKS_H
