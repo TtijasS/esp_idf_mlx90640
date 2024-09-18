@@ -18,7 +18,7 @@ extern const int DELAY_BETWEEN_SUBPAGES;
 #define TASK_MERGE_SUBPAGES_STACK_SIZE (1024*2)
 #define TASK_ISRUART_STACK_SIZE (1024*2)
 #define TASK_MSG_Q_STACK_SIZE (1024*2)
-#define DEBUG_STACKS 1
+#define DEBUG_STACKS 0
 
 // ############################# REFRESH CONFIGURATION #############################
 // --------- UNCOMMENT ONE OF THE FOLLOWING LINES TO SET THE REFRESH RATE ---------
