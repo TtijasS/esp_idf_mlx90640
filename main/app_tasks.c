@@ -77,7 +77,7 @@ void task_initialization(void *params)
 	}
 
 	// Init UART with ISR queue
-	if ((error_code = uart_init_with_isr_queue(&uart_config, UART_NUM, UART_TXD, UART_RXD, UART_TX_BUFF_SIZE, UART_RX_BUFF_SIZE, &queue_uart_isr_event_queue, UART_EVENT_QUEUE_SIZE, 0)) != 0)
+	if ((error_code = myuart_init_with_isr_queue(&uart_config, UART_NUM, UART_TXD, UART_RXD, UART_TX_BUFF_SIZE, UART_RX_BUFF_SIZE, &queue_uart_isr_event_queue, UART_EVENT_QUEUE_SIZE, 0)) != 0)
 	{
 		ESP_LOGE(TAG, "Failed to init uart with isr queue. Error code %d", error_code);
 		vTaskDelete(NULL);
@@ -116,8 +116,6 @@ void task_initialization(void *params)
 		ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_INIT_STACK_SIZE - stack_hwm), TASK_INIT_STACK_SIZE);
 	}
 
-	xTaskNotifyGive(handl_get_subpages);
-
 	vTaskDelete(NULL);
 }
 
@@ -147,7 +145,6 @@ void task_mlx_get_subpages(void *params)
 		if (MLX90640_SynchFrame(MLX90640_SLAVE_ADR) != 0)
 		{
 			ESP_LOGE(TAG, "Failed syncing subpages. Error: %d", error_code);
-			uart_write_bytes(UART_NUM, "Error syncing subpages", strlen("Error syncing subpages"));
 			xSemaphoreGive(semphr_request_image);
 			continue;
 		}
@@ -163,7 +160,6 @@ void task_mlx_get_subpages(void *params)
 		if (error_code != 0)
 		{
 			ESP_LOGE(TAG, "Failed reading subpages. Error: %d", error_code);
-			uart_write_bytes(UART_NUM, "Error reading subpages", strlen("Error reading subpages"));
 			xSemaphoreGive(semphr_request_image);
 			continue;
 		}
@@ -218,9 +214,9 @@ void task_mlx_uart_frame_data(void *params)
 		// copy new frame bytes to uint8_t buffer
 		memcpy(buffer, subpage_0, MLX_FRAME_SIZE * sizeof(float));
 		// Start flag, data, stop flag
-		// uart_write_bytes(UART_NUM, "\xfa\xfa\xfa\xfa\xff", 5);
-		// uart_write_bytes(UART_NUM, buffer, buffer_size);
-		// uart_write_bytes(UART_NUM, "\xff\xfa\xfa\xfa\xfa", 5);
+		uart_write_bytes(UART_NUM, "\xff\xff\xff\xff\xfa", 5);
+		uart_write_bytes(UART_NUM, buffer, buffer_size);
+		uart_write_bytes(UART_NUM, "\xfa\xff\xff\xff\xff", 5);
 
 		if (DEBUG_STACKS == 1)
 		{
@@ -270,7 +266,7 @@ void task_uart_isr_monitoring(void *params)
 					ESP_LOGE(TAG, "Pattern index -1");
 					break;
 				}
-				if ((error_flag = uart_encapsulation_handler(UART_NUM, &encapsulation_counter, &pattern_index)) < 0)
+				if ((error_flag = myuart_encapsulation_handler(UART_NUM, &encapsulation_counter, &pattern_index)) < 0)
 				{
 					ESP_LOGE(TAG, "Uart encapsulation handler error %d", error_flag);
 				}
@@ -307,11 +303,14 @@ void task_queue_msg_handler(void *params)
 	TaskQueueMessage_type enqueued_message;
 
 	// START SAMPLING
-	const char *GET_FRAME = "GET FRAME";
-	// COMMON
+	const char *MLX_START = "MLX START";
+	// RESPONSES
 	const char *MLX_BUSY = "MLX BUSY";
 	const char *MLX_OK = "MLX OK";
-	const char *FAIL = "FAIL";
+	const char *MLX_FAIL = "MLX FAIL";
+	// GENERIC
+	const char *WHOAMI = "WHOAMI";
+	const char *DEVID = "MLX90640";
 
 	while (1)
 	{
@@ -319,8 +318,13 @@ void task_queue_msg_handler(void *params)
 		{
 			if (enqueued_message.msg_ptr != NULL)
 			{
+				// WHOAMI
+				if (memcmp(enqueued_message.msg_ptr, WHOAMI, (strlen(WHOAMI))) == 0)
+				{
+					uart_write_bytes(UART_NUM, DEVID, strlen(DEVID));
+				}
 				// A START
-				if (memcmp(enqueued_message.msg_ptr, GET_FRAME, (strlen(GET_FRAME))) == 0)
+				else if (memcmp(enqueued_message.msg_ptr, MLX_START, (strlen(MLX_START))) == 0)
 				{
 					if (xSemaphoreTake(semphr_request_image, pdMS_TO_TICKS(10)) == pdTRUE)
 					{
@@ -334,13 +338,14 @@ void task_queue_msg_handler(void *params)
 				}
 				else
 				{
-					uart_write_bytes(UART_NUM, "?? ", strlen("?? "));
+					uart_write_bytes(UART_NUM, "??", strlen("??"));
 					uart_write_bytes(UART_NUM, enqueued_message.msg_ptr, enqueued_message.msg_size);
 				}
 				free(enqueued_message.msg_ptr);
 			}
 			else
 			{
+				uart_write_bytes(UART_NUM, "Null pointer passed", strlen("Null pointer passed"));
 				ESP_LOGE(TAG, "Null pointer passed");
 			}
 		}

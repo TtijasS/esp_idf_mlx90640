@@ -26,7 +26,7 @@ uart_config_t uart_config = {
  * @return -3 failed to install uart driver
  * @return -4 failed to set uart pins
  */
-int uart_init_with_isr_queue(uart_config_t *uart_config, uart_port_t port_num, int gpio_tx, int gpio_rx, int tx_buff_size, int rx_buff_size, QueueHandle_t *isr_queue_handle, int isr_queue_size, int intr_alloc_flags)
+int myuart_init_with_isr_queue(uart_config_t *uart_config, uart_port_t port_num, int gpio_tx, int gpio_rx, int tx_buff_size, int rx_buff_size, QueueHandle_t *isr_queue_handle, int isr_queue_size, int intr_alloc_flags)
 {
 	const char *TAG = "UART INIT WITH Q";
 	esp_log_level_set(TAG, ESP_LOG_ERROR);
@@ -65,7 +65,7 @@ int uart_init_with_isr_queue(uart_config_t *uart_config, uart_port_t port_num, i
  * @return -1 failed malloc
  * @return -2 not enough bytes in RX buffer
  */
-int uart_encapsulation_start_flag_handler(uart_port_t uart_num, int pattern_index)
+int myuart_encapsulation_start_flag_handler(uart_port_t uart_num, int pattern_index)
 {
 	const char *TAG = "ENCAP START";
 
@@ -103,7 +103,7 @@ int uart_encapsulation_start_flag_handler(uart_port_t uart_num, int pattern_inde
  * @return -1 wrong pattern indice
  * @return -2 not enough bytes in RX buffer
  */
-int uart_encapsulation_end_flag_handler(uart_port_t uart_num, int pattern_index)
+int myuart_encapsulation_end_flag_handler(uart_port_t uart_num, int pattern_index)
 {
 	uint8_t *tmp_buffer = (uint8_t *)malloc(ENCAP_FLAG_SIZE * sizeof(uint8_t));
 
@@ -138,7 +138,7 @@ int uart_encapsulation_end_flag_handler(uart_port_t uart_num, int pattern_index)
  * @return -2 message_size < 0
  * @return -3 not enough bytes in RX buffer
  */
-int uart_encapsulated_message_handler(uart_port_t uart_num, uint8_t *message_buf, int message_size)
+int myuart_encapsulated_message_handler(uart_port_t uart_num, uint8_t *message_buf, int message_size)
 {
 	/*
 	This function simply reads the encapsulated message that should sit between two encapsulation flags.
@@ -160,7 +160,7 @@ int uart_encapsulated_message_handler(uart_port_t uart_num, uint8_t *message_buf
 	return 0;
 }
 
-int message_send_to_queue(uint8_t *message, size_t message_size)
+int myuart_message_send_to_queue(uint8_t *message, size_t message_size)
 {
 	const char *TAG = "MSG PREP SEND TO Q";
 
@@ -213,7 +213,7 @@ int message_send_to_queue(uint8_t *message, size_t message_size)
  * @return -6 failed to send the message copy to queue
  * @return -7 bad stop flag
  */
-int uart_encapsulation_handler(uart_port_t uart_num, int *encap_state, int *pattern_index)
+int myuart_encapsulation_handler(uart_port_t uart_num, int *encap_state, int *pattern_index)
 {
 	enum encap_states
 	{
@@ -231,7 +231,7 @@ int uart_encapsulation_handler(uart_port_t uart_num, int *encap_state, int *patt
 		/**
 		 * @brief Read and check the START FLAG
 		 */
-		if (uart_encapsulation_start_flag_handler(UART_NUM, *pattern_index) == 0)
+		if (myuart_encapsulation_start_flag_handler(UART_NUM, *pattern_index) == 0)
 		{
 			(*encap_state)++;
 			return 1; // Start flag OK, return immediately
@@ -265,7 +265,7 @@ int uart_encapsulation_handler(uart_port_t uart_num, int *encap_state, int *patt
 		/**
 		 * @brief Read the MESSAGE bytes
 		 */
-		if (uart_encapsulated_message_handler(UART_NUM, tmp_message_buf, tmp_message_size) == 0)
+		if (myuart_encapsulated_message_handler(UART_NUM, tmp_message_buf, tmp_message_size) == 0)
 		{
 			*pattern_index -= tmp_message_size;
 		}
@@ -279,9 +279,9 @@ int uart_encapsulation_handler(uart_port_t uart_num, int *encap_state, int *patt
 		/**
 		 * @brief Read and check STOP FLAG
 		 */
-		if (uart_encapsulation_end_flag_handler(UART_NUM, *pattern_index) == 0)
+		if (myuart_encapsulation_end_flag_handler(UART_NUM, *pattern_index) == 0)
 		{
-			if (message_send_to_queue(tmp_message_buf, tmp_message_size) != 0)
+			if (myuart_message_send_to_queue(tmp_message_buf, tmp_message_size) != 0)
 			{
 				ESP_LOGE(TAG, "Failed to send message to queue");
 			}
