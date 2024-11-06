@@ -16,7 +16,6 @@ float *subpage_1;
 void task_initialization(void *params)
 {
 	const char *TAG = "TSK INIT";
-	// esp_log_level_set(TAG, ESP_LOG_INFO);
 	int error_code = 0;
 
 	subpage_0 = (float *)calloc(MLX_FRAME_SIZE, sizeof(float));
@@ -58,6 +57,7 @@ void task_initialization(void *params)
 	if (mlx_read_extract_eeprom(&mlx90640_params) != 0)
 	{
 		ESP_LOGE(TAG, "Failed to read and extract EEPROM data");
+		vTaskDelete(NULL);
 	}
 
 	if (xTaskCreatePinnedToCore(task_mlx_get_subpages, "MLX get subpage task", TASK_GET_SUBPAGES_STACK_SIZE, NULL, 10, &handl_get_subpages, tskNO_AFFINITY) != pdPASS)
@@ -112,8 +112,8 @@ void task_initialization(void *params)
 	if (DEBUG_STACKS == 1)
 	{
 		UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-		ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-		ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_INIT_STACK_SIZE - stack_hwm), TASK_INIT_STACK_SIZE);
+		ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+		ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_INIT_STACK_SIZE - stack_hwm), TASK_INIT_STACK_SIZE);
 	}
 
 	vTaskDelete(NULL);
@@ -129,8 +129,6 @@ void task_mlx_get_subpages(void *params)
 	const char *TAG = "TSK GET SUBPAGES";
 
 	TickType_t last_wake_time = 0;
-	TickType_t deltatime = 0;
-	int deltatime_diff = 0;
 	uint8_t failed_attempts = 0;
 	int error_code = 0;
 	while (1)
@@ -144,7 +142,7 @@ void task_mlx_get_subpages(void *params)
 		// Synchronize the frame
 		if (MLX90640_SynchFrame(MLX90640_SLAVE_ADR) != 0)
 		{
-			ESP_LOGE(TAG, "Failed syncing subpages. Error: %d", error_code);
+			ESP_LOGW(TAG, "Failed syncing subpages. Error: %d", error_code);
 			xSemaphoreGive(semphr_request_image);
 			continue;
 		}
@@ -159,7 +157,7 @@ void task_mlx_get_subpages(void *params)
 
 		if (error_code != 0)
 		{
-			ESP_LOGE(TAG, "Failed reading subpages. Error: %d", error_code);
+			ESP_LOGW(TAG, "Failed reading subpages. Error: %d", error_code);
 			xSemaphoreGive(semphr_request_image);
 			continue;
 		}
@@ -167,8 +165,8 @@ void task_mlx_get_subpages(void *params)
 		if (DEBUG_STACKS == 1)
 		{
 			UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-			ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-			ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_GET_SUBPAGES_STACK_SIZE - stack_hwm), TASK_GET_SUBPAGES_STACK_SIZE);
+			ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+			ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_GET_SUBPAGES_STACK_SIZE - stack_hwm), TASK_GET_SUBPAGES_STACK_SIZE);
 		}
 
 		failed_attempts = 0;
@@ -186,7 +184,7 @@ void task_mlx_merge_subpages(void *params)
 
 		if (mlx_merge_subpages(subpage_0, subpage_1) != 0)
 		{
-			ESP_LOGE(TAG, "Failed to merge subpages");
+			ESP_LOGW(TAG, "Failed to merge subpages");
 			uart_write_bytes(UART_NUM, "Error reading subpages", strlen("Error reading subpages"));
 			xSemaphoreGive(semphr_request_image);
 			continue;
@@ -195,8 +193,8 @@ void task_mlx_merge_subpages(void *params)
 		if (DEBUG_STACKS == 1)
 		{
 			UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-			ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-			ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_MERGE_SUBPAGES_STACK_SIZE - stack_hwm), TASK_MERGE_SUBPAGES_STACK_SIZE);
+			ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+			ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_MERGE_SUBPAGES_STACK_SIZE - stack_hwm), TASK_MERGE_SUBPAGES_STACK_SIZE);
 		}
 
 		xTaskNotifyGive(handl_uart_frame_data);
@@ -221,8 +219,8 @@ void task_mlx_uart_frame_data(void *params)
 		if (DEBUG_STACKS == 1)
 		{
 			UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-			ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-			ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_UART_FRAME_DATA_STACK_SIZE - stack_hwm), TASK_UART_FRAME_DATA_STACK_SIZE);
+			ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+			ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_UART_FRAME_DATA_STACK_SIZE - stack_hwm), TASK_UART_FRAME_DATA_STACK_SIZE);
 		}
 
 		xSemaphoreGive(semphr_request_image);
@@ -263,7 +261,7 @@ void task_uart_isr_monitoring(void *params)
 				int pattern_index = uart_pattern_pop_pos(UART_NUM);
 				if (pattern_index == -1)
 				{
-					ESP_LOGE(TAG, "Pattern index -1");
+					ESP_LOGW(TAG, "Pattern index -1");
 					break;
 				}
 				if ((error_flag = myuart_encapsulation_handler(UART_NUM, &encapsulation_counter, &pattern_index)) < 0)
@@ -280,8 +278,8 @@ void task_uart_isr_monitoring(void *params)
 		if (DEBUG_STACKS == 1)
 		{
 			UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-			ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-			ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_ISRUART_STACK_SIZE - stack_hwm), TASK_ISRUART_STACK_SIZE);
+			ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+			ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_ISRUART_STACK_SIZE - stack_hwm), TASK_ISRUART_STACK_SIZE);
 		}
 	}
 	ESP_LOGW(TAG, "KILLING THE UART ISR TASK");
@@ -307,7 +305,7 @@ void task_queue_msg_handler(void *params)
 	// RESPONSES
 	const char *MLX_BUSY = "MLX BUSY";
 	const char *MLX_OK = "MLX OK";
-	const char *MLX_FAIL = "MLX FAIL";
+	// const char *MLX_FAIL = "MLX FAIL";
 	// GENERIC
 	const char *WHOAMI = "WHOAMI";
 	const char *DEVID = "MLX90640";
@@ -346,15 +344,15 @@ void task_queue_msg_handler(void *params)
 			else
 			{
 				uart_write_bytes(UART_NUM, "Null pointer passed", strlen("Null pointer passed"));
-				ESP_LOGE(TAG, "Null pointer passed");
+				ESP_LOGW(TAG, "Null pointer passed");
 			}
 		}
 
 		if (DEBUG_STACKS == 1)
 		{
 			UBaseType_t stack_hwm = uxTaskGetStackHighWaterMark(NULL);
-			ESP_LOGI(TAG, "Free stack size: %u B", stack_hwm);
-			ESP_LOGI(TAG, "Stack in use: %u of %u B", (TASK_MSG_Q_STACK_SIZE - stack_hwm), TASK_MSG_Q_STACK_SIZE);
+			ESP_LOGD(TAG, "Free stack size: %u B", stack_hwm);
+			ESP_LOGD(TAG, "Stack in use: %u of %u B", (TASK_MSG_Q_STACK_SIZE - stack_hwm), TASK_MSG_Q_STACK_SIZE);
 		}
 	}
 }

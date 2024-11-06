@@ -69,11 +69,10 @@ int MLX90640_I2CGeneralReset()
 
 int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddressRead, uint16_t *data)
 {
-	int error_code = 0;
 	const char *TAG = "MLX90640_I2cRead";
 	if ((nMemAddressRead * 2) > (832 * 2))
 	{
-		ESP_LOGI(TAG, "Error: Too many bytes to read. Max 832 words allowed (1664 bytes)");
+		ESP_LOGW(TAG, "Error: Too many bytes to read. Max 832 words allowed (1664 bytes)");
 		return -1;
 	}
 
@@ -82,7 +81,7 @@ int MLX90640_I2CRead(uint8_t slaveAddr, uint16_t startAddress, uint16_t nMemAddr
 	uint8_t *read_buffer = (uint8_t *)malloc(nMemAddressRead * 2);
 	if (read_buffer == NULL)
 	{
-		ESP_LOGI(TAG, "Error: Failed to allocate memory for read_buffer");
+		ESP_LOGE(TAG, "Error: Failed to allocate memory for read_buffer");
 		return -2;
 	}
 
@@ -124,7 +123,7 @@ int MLX90640_I2CWrite(uint8_t slaveAddr, uint16_t writeAddress, uint16_t data)
 
 	if (i2c_master_transmit(master_dev_handle, write_buffer, 4, I2C_TIMEOUT_MS) != ESP_OK)
 	{
-		ESP_LOGI(TAG, "Error i2c master transmit");
+		ESP_LOGE(TAG, "Error i2c master transmit");
 		return -1;
 	}
 

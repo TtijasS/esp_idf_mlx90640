@@ -113,7 +113,7 @@ int mlx_get_subpage_temps(float *subpage_temps, float emissivity, int8_t ambient
     // Get the ambient temperature
     float ambient_temperature = MLX90640_GetTa(subpage_raw_data, &mlx90640_params);
     ambient_temperature += ambient_offset; // offset the ambient temperature
-    // ESP_LOGI(TAG, "Ambient temp: %.2f °C", ambient_temperature);
+    ESP_LOGD(TAG, "Ambient temp: %.2f °C", ambient_temperature);
 
     // Calculate subpage temperatures
     MLX90640_CalculateTo(subpage_raw_data, &mlx90640_params, emissivity, ambient_temperature, subpage_temps);
